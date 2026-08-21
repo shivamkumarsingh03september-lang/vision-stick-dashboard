@@ -124,9 +124,10 @@
 
 <script>
   // ---- CONFIG: point this at your backend ----
-  const SERVER_HOST = window.location.hostname || 'localhost';
-  const WS_URL = `ws://${SERVER_HOST}:3000`;
-  const HTTP_URL = `http://${SERVER_HOST}:3000`;
+  const SERVER_HOST = window.location.hostname;
+const isSecure = window.location.protocol === 'https:';
+const WS_URL = `${isSecure ? 'wss' : 'ws'}://${SERVER_HOST}${isSecure ? '' : ':3000'}`;
+const HTTP_URL = `${isSecure ? 'https' : 'http'}://${SERVER_HOST}${isSecure ? '' : ':3000'}`;
   document.getElementById('serverUrl').textContent = HTTP_URL;
 
   const dot = document.getElementById('dot');
