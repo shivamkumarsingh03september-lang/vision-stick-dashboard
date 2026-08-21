@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vision Stick — Live Telemetry</title>
+<style>
+  :root {
+    --bg: #0a0e0f;
+    --panel: #10161a;
+    --line: #1e2a2c;
+    --text: #e8ede9;
+    --muted: #6f8a86;
+    --phosphor: #5eff9a;
+    --phosphor-dim: #2a5c42;
+    --amber: #ffb454;
+    --cyan: #6fd6ff;
+    --danger: #ff6b6b;
+    --mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); min-height: 100vh;
+  }
+  body {
+    background-image:
+      radial-gradient(ellipse at top, rgba(94,255,154,0.05), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px);
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 20px 60px; }
+
+  header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 22px; flex-wrap: wrap; gap: 10px; }
+  .title { font-family: var(--mono); font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+  .title strong { color: var(--phosphor); display: block; font-size: 22px; letter-spacing: 0.05em; margin-top: 4px; }
+  .conn { font-family: var(--mono); font-size: 12px; display: flex; align-items: center; gap: 8px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+  .dot.live { background: var(--phosphor); box-shadow: 0 0 8px var(--phosphor); animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .status-banner {
+    font-family: var(--mono); font-size: 15px; letter-spacing: 0.08em;
+    padding: 14px 18px; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--panel); margin-bottom: 24px; transition: all 0.3s ease;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .status-banner.clear { border-color: var(--phosphor-dim); color: var(--phosphor); }
+  .status-banner.obstacle { border-color: var(--amber); color: var(--amber); }
+  .status-banner .ts { color: var(--muted); font-size: 12px; }
+
+  .grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 18px; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 20px; }
+  .panel h2 { font-family: var(--mono); font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); margin: 0 0 16px; }
+
+  /* Sonar arc */
+  .sonar { display: flex; justify-content: center; }
+  .sonar svg { width: 100%; max-width: 380px; }
+  .zone-label { font-family: var(--mono); font-size: 11px; fill: var(--muted); letter-spacing: 0.1em; }
+  .zone-val { font-family: var(--mono); font-weight: 700; }
+
+  /* Env readouts */
+  .env-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 4px; }
+  .env-cell { text-align: center; padding: 14px 6px; border: 1px solid var(--line); border-radius: 6px; }
+  .env-cell .val { font-family: var(--mono); font-size: 24px; font-weight: 700; color: var(--cyan); }
+  .env-cell .lbl { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.1em; margin-top: 4px; }
+
+  .pothole-row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .pothole-row .val { font-family: var(--mono); font-size: 20px; color: var(--amber); }
+  .pothole-row .lbl { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.1em; }
+
+  .history { margin-top: 18px; }
+  .spark { width: 100%; height: 60px; display: block; }
+
+  footer { margin-top: 28px; font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="title">Weather Adaptive<strong>Vision Stick — Telemetry</strong></div>
+    <div class="conn"><span class="dot" id="dot"></span><span id="connText">connecting…</span></div>
+  </header>
+
+  <div class="status-banner clear" id="statusBanner">
+    <span id="statusText">STATUS : —</span>
+    <span class="ts" id="statusTime">—</span>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Proximity — Sonar View</h2>
+      <div class="sonar">
+        <svg viewBox="0 0 380 220" id="sonarSvg">
+          <!-- arcs drawn by JS -->
+        </svg>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Environment</h2>
+      <div class="env-grid">
+        <div class="env-cell"><div class="val" id="valTemp">—</div><div class="lbl">TEMP °C</div></div>
+        <div class="env-cell"><div class="val" id="valHum">—</div><div class="lbl">HUMIDITY %</div></div>
+        <div class="env-cell"><div class="val" id="valPres">—</div><div class="lbl">PRESSURE hPa</div></div>
+      </div>
+
+      <div class="pothole-row">
+        <div><div class="val" id="valDepth">—</div><div class="lbl">DEPTH mm</div></div>
+        <div><div class="val" id="valBase">—</div><div class="lbl">BASELINE</div></div>
+      </div>
+
+      <div class="history">
+        <h2 style="margin-top:16px;">Depth History</h2>
+        <svg class="spark" viewBox="0 0 300 60" id="sparkSvg"></svg>
+      </div>
+    </div>
+  </div>
+
+  <footer>SERVER: <span id="serverUrl">—</span> · updates push live over WebSocket</footer>
+</div>
+
+<script>
+  // ---- CONFIG: point this at your backend ----
+  const SERVER_HOST = window.location.hostname || 'localhost';
+  const WS_URL = `ws://${SERVER_HOST}:3000`;
+  const HTTP_URL = `http://${SERVER_HOST}:3000`;
+  document.getElementById('serverUrl').textContent = HTTP_URL;
+
+  const dot = document.getElementById('dot');
+  const connText = document.getElementById('connText');
+  const statusBanner = document.getElementById('statusBanner');
+  const statusText = document.getElementById('statusText');
+  const statusTime = document.getElementById('statusTime');
+
+  let depthHistory = [];
+
+  function setConnected(live) {
+    dot.classList.toggle('live', live);
+    connText.textContent = live ? 'live' : 'disconnected — retrying…';
+  }
+
+  function fmt(n, d=1) { return (typeof n === 'number') ? n.toFixed(d) : '—'; }
+
+  function render(data) {
+    document.getElementById('valTemp').textContent = fmt(data.temp);
+    document.getElementById('valHum').textContent = fmt(data.hum, 0);
+    document.getElementById('valPres').textContent = fmt(data.pres, 0);
+    document.getElementById('valDepth').textContent = fmt(data.depth, 0);
+    document.getElementById('valBase').textContent = fmt(data.baseline, 2);
+
+    statusText.textContent = 'STATUS : ' + (data.status || '—');
+    statusBanner.classList.toggle('obstacle', /OBSTACLE/i.test(data.status||''));
+    statusBanner.classList.toggle('clear', !/OBSTACLE/i.test(data.status||''));
+    statusTime.textContent = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : '—';
+
+    drawSonar(data.left, data.front, data.right);
+
+    if (typeof data.depth === 'number') {
+      depthHistory.push(data.depth);
+      if (depthHistory.length > 40) depthHistory.shift();
+      drawSpark(depthHistory);
+    }
+  }
+
+  function drawSonar(left, front, right) {
+    const svg = document.getElementById('sonarSvg');
+    const cx = 190, cy = 210, maxR = 170;
+    const zones = [
+      { label: 'LEFT',  angle: 150, val: left },
+      { label: 'FRONT', angle: 90,  val: front },
+      { label: 'RIGHT', angle: 30,  val: right },
+    ];
+    let svgContent = `<circle cx="${cx}" cy="${cy}" r="${maxR}" fill="none" stroke="#1e2a2c" stroke-width="1"/>`;
+    svgContent += `<circle cx="${cx}" cy="${cy}" r="${maxR*0.66}" fill="none" stroke="#1e2a2c" stroke-width="1"/>`;
+    svgContent += `<circle cx="${cx}" cy="${cy}" r="${maxR*0.33}" fill="none" stroke="#1e2a2c" stroke-width="1"/>`;
+
+    zones.forEach(z => {
+      const v = typeof z.val === 'number' ? Math.min(z.val, 200) : 200;
+      const r = maxR * (v / 200);
+      const rad = (z.angle * Math.PI) / 180;
+      const x = cx + r * Math.cos(rad);
+      const y = cy - r * Math.sin(rad);
+      const lx = cx + (maxR + 22) * Math.cos(rad);
+      const ly = cy - (maxR + 22) * Math.sin(rad);
+      const close = v < 15;
+      const color = close ? '#ff6b6b' : (v < 40 ? '#ffb454' : '#5eff9a');
+
+      svgContent += `<line x1="${cx}" y1="${cy}" x2="${cx + maxR*Math.cos(rad)}" y2="${cy - maxR*Math.sin(rad)}" stroke="#1e2a2c" stroke-width="1"/>`;
+      svgContent += `<circle cx="${x}" cy="${y}" r="7" fill="${color}"><animate attributeName="opacity" values="1;0.5;1" dur="1.4s" repeatCount="indefinite"/></circle>`;
+      svgContent += `<text x="${lx}" y="${ly}" text-anchor="middle" class="zone-label">${z.label}</text>`;
+      svgContent += `<text x="${lx}" y="${ly + 14}" text-anchor="middle" class="zone-val" fill="${color}" font-size="13">${typeof z.val==='number'?z.val:'—'}cm</text>`;
+    });
+
+    svg.innerHTML = svgContent;
+  }
+
+  function drawSpark(vals) {
+    const svg = document.getElementById('sparkSvg');
+    if (vals.length < 2) { svg.innerHTML=''; return; }
+    const max = Math.max(...vals, 10), min = 0;
+    const w = 300, h = 60;
+    const step = w / (vals.length - 1);
+    const pts = vals.map((v, i) => `${i*step},${h - ((v-min)/(max-min))*h}`).join(' ');
+    svg.innerHTML = `<polyline points="${pts}" fill="none" stroke="#ffb454" stroke-width="2"/>`;
+  }
+
+  function connect() {
+    const ws = new WebSocket(WS_URL);
+    ws.onopen = () => setConnected(true);
+    ws.onclose = () => { setConnected(false); setTimeout(connect, 2000); };
+    ws.onerror = () => ws.close();
+    ws.onmessage = (evt) => {
+      const msg = JSON.parse(evt.data);
+      if (msg.type === 'reading') render(msg.data);
+    };
+  }
+
+  // Initial fetch (in case WS takes a moment) + then live via WS
+  fetch(`${HTTP_URL}/api/reading`).then(r => r.json()).then(render).catch(()=>{});
+  connect();
+</script>
+</body>
+</html>

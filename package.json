@@ -1,0 +1,18 @@
+{
+  "name": "vision-stick-dashboard",
+  "version": "1.0.0",
+  "description": "``` ESP32-S3 (WiFi) --HTTP POST--> Node backend --WebSocket--> Web dashboard (live)                                      |                                      +--HTTP GET (polled)--> Alexa skill --> APL on Echo Show ```",
+  "main": "lambda_handler.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "ws": "^8.21.3"
+  }
+}
